@@ -1,0 +1,25 @@
+﻿using Azure.Messaging.ServiceBus;
+
+namespace Blocks.Genesis
+{
+    public static class MessageSender
+    {
+        public static async Task SendMessagesAsync()
+        {
+
+            try
+            {
+                await using ServiceBusClient client = new ServiceBusClient("Endpoint=sb://blocks-rnd.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=yrPedlcfEp0/jHeh6m0ndC0qoyYeg5UT2+ASbObmPYU=");
+                ServiceBusSender sender = client.CreateSender("DemoQueue");
+                ServiceBusMessage message = new ServiceBusMessage("It Is a demo");
+                await sender.SendMessageAsync(message);
+            }
+            catch (Exception e)
+            {
+
+                Console.WriteLine(e);
+            }
+
+        }
+    }
+}
