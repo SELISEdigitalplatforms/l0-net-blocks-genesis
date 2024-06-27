@@ -23,8 +23,8 @@ namespace Api1
             ApplicationConfigurations.ConfigureMessage(services, new MessageConfiguration
             {
                 Connection = "Endpoint=sb://blocks-rnd.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=yrPedlcfEp0/jHeh6m0ndC0qoyYeg5UT2+ASbObmPYU=",
-                Queues = new List<string> { "demo_queue", "demo_queue_1" },
-                Topics = new List<string> { "demo_topic", "demo_topic_1" }
+                Queues = new List<string> { "demo_queue_1" },
+                Topics = new List<string> { "demo_topic_1" }
             });
 
             var app = builder.Build();
