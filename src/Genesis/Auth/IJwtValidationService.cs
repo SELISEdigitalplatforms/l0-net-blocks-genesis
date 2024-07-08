@@ -2,7 +2,7 @@
 {
     public interface IJwtValidationService
     {
-        Task<JwtValidationParameters> GetValidationParametersAsync(string issuer, string audience);
+        JwtValidationParameters GetValidationParameter(string issuer, string audience);
     }
 
 }

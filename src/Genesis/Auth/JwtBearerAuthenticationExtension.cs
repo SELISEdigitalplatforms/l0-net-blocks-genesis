@@ -25,7 +25,7 @@ namespace Blocks.Genesis
                     };
                     options.Events = new JwtBearerEvents
                     {
-                        OnTokenValidated = async context =>
+                        OnTokenValidated = context =>
                         {
                             var token = context.SecurityToken as JwtSecurityToken;
                             if (token != null)
@@ -34,12 +34,12 @@ namespace Blocks.Genesis
                                 var issuer = token.Issuer;
                                 var audienceId = token.Audiences.FirstOrDefault();
 
-                                var validationParameters = await jwtValidationService.GetValidationParametersAsync(issuer, audienceId);
+                                var validationParameters =  jwtValidationService.GetValidationParameter(issuer, audienceId?? "");
 
                                 if (validationParameters == null)
                                 {
                                     context.Fail("Invalid token parameters");
-                                    return;
+                                    return Task.CompletedTask;
                                 }
 
                                 var origin = TokenRetrievalHelper.GetHostOfRequestOrigin(context.Request);
@@ -51,7 +51,7 @@ namespace Blocks.Genesis
                                     if (!isAllowed)
                                     {
                                         context.Fail("Invalid origin");
-                                        return;
+                                        return Task.CompletedTask;
                                     }
                                 }
 
@@ -81,6 +81,8 @@ namespace Blocks.Genesis
                                     context.Fail(ex.Message);
                                 }
                             }
+
+                            return Task.CompletedTask;
                         },
                         OnMessageReceived = context =>
                         {
@@ -102,8 +104,5 @@ namespace Blocks.Genesis
 
             services.AddAuthorization();
         }
-
-
-
     }
 }

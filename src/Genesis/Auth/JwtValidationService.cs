@@ -3,7 +3,7 @@
     public class JwtValidationService : IJwtValidationService
     {
 
-        public Task<JwtValidationParameters> GetValidationParametersAsync(string issuer, string audienceId)
+        public JwtValidationParameters GetValidationParameter(string issuer, string audienceId)
         {
             var parameters = new List<JwtValidationParameters>
             {
@@ -17,7 +17,7 @@
             };
             var matchingParams = parameters?.FirstOrDefault(p => p.Issuer == issuer && p.AudienceId == audienceId);
 
-            return Task.FromResult(matchingParams);
+            return matchingParams;
         }
     }
 
