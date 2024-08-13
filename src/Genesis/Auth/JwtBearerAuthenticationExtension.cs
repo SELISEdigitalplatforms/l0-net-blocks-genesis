@@ -16,7 +16,6 @@ namespace Blocks.Genesis
 
             var serviceProvider = services.BuildServiceProvider();
             var jwtValidationService = serviceProvider.GetRequiredService<IJwtValidationService>();
-            var securityContext = serviceProvider.GetRequiredService<ISecurityContext>();
 
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
@@ -64,7 +63,7 @@ namespace Blocks.Genesis
 
                                     TokenHelper.HandleTokenIssuer(claimsIdentity, requestUri, jwtBearerToken);
 
-                                    securityContext = SecurityContext.CreateFromClaimsIdentity(claimsIdentity);
+                                    var securityContext = SecurityContext.CreateFromClaimsIdentity(claimsIdentity);
 
                                     // Custom validation logic for tenant-specific parameters
                                     var tokenParameters = jwtValidationService.GetTokenParameters(tenantId);

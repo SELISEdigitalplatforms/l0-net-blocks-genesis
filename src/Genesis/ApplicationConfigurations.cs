@@ -1,8 +1,11 @@
 ﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
+using MongoDB.Driver;
+using MongoDB.Driver.Core.Operations;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Serilog;
@@ -12,11 +15,13 @@ namespace Blocks.Genesis
 {
     public static class ApplicationConfigurations
     {
-        static string _serviceName = string.Empty;
+       
 
-        public static void SetServiceName(string serviceName)
+        public static string ServiceName { get; private set; }
+
+        public static void SetServiceName(IConfigurationManager configuration)
         {
-            _serviceName = serviceName;
+            ServiceName = configuration["ServiceName"] ?? "";
         }
 
         public static void ConfigureLog()
@@ -26,14 +31,20 @@ namespace Blocks.Genesis
                         .Enrich.With<TraceContextEnricher>()
                         .Enrich.WithEnvironmentName()
                         .WriteTo.Console()
-                        .WriteTo.MongoDBWithDynamicCollection(_serviceName)
+                        .WriteTo.MongoDBWithDynamicCollection(ServiceName)
                         .CreateLogger();
         }
 
-        public async static Task ConfigureServices(IServiceCollection services)
+        public async static Task<IBlocksSecret> ConfigureServices(IServiceCollection services, IConfigurationManager configurationManager)
         {
+            string _secretConfigPath = configurationManager["SecretConfigJsonPath"] ?? "";
+            var blocksSecret = BlocksSecret.ProcessBlocksSecretFromJsonFile(_secretConfigPath);
+
+            services.AddSingleton(typeof(IBlocksSecret), blocksSecret);
+            services.AddSingleton<IMongoClient, MongoClient>(sp => new MongoClient($"{blocksSecret.StorageBasePath}"));
+
             services.AddSingleton<ICacheClient, RedisClient>();
-            await LmtConfiguration.CreateCollectionAsync(_serviceName);
+            await LmtConfiguration.CreateCollectionAsync(ServiceName);
 
             var objectSerializer = new ObjectSerializer(_ => true);
             BsonSerializer.RegisterSerializer(objectSerializer);
@@ -44,7 +55,7 @@ namespace Blocks.Genesis
                 builder.AddSerilog();
             });
 
-            services.AddSingleton(new ActivitySource(_serviceName));
+            services.AddSingleton(new ActivitySource(ServiceName));
 
             services.AddOpenTelemetry()
                 .WithTracing(builder =>
@@ -53,15 +64,16 @@ namespace Blocks.Genesis
                            .AddHttpClientInstrumentation()
                            .AddMongoDBInstrumentation()
                            .AddRedisInstrumentation()
-                           .AddProcessor(new MongoDBTraceExporter(_serviceName));
+                           .AddProcessor(new MongoDBTraceExporter(ServiceName));
                 });
             services.AddOpenTelemetry().WithMetrics(builder =>
             {
                 builder.AddAspNetCoreInstrumentation()
                        .AddRuntimeInstrumentation()
-                       .AddReader(new PeriodicExportingMetricReader(new MongoDBMetricsExporter(_serviceName)));
+                       .AddReader(new PeriodicExportingMetricReader(new MongoDBMetricsExporter(ServiceName)));
             });
 
+            return blocksSecret;
         }
 
         public static void ConfigureAuth(IServiceCollection services)

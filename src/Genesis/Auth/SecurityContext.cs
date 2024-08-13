@@ -22,6 +22,10 @@ namespace Blocks.Genesis
         public string OrganizationId { get; }
         public bool IsAuthenticated { get; }
 
+        public SecurityContext()
+        {
+        }
+
         private SecurityContext((string TenantId, IEnumerable<string> Roles, string OauthBearerToken, string UserId, bool IsAuthenticated, Uri RequestUri, string OrganizationId) tuple)
         {
             TenantId = tuple.TenantId;
@@ -54,8 +58,5 @@ namespace Blocks.Genesis
         {
             return new SecurityContext(claimsIdentity);
         }
-
-
-
     }
 }

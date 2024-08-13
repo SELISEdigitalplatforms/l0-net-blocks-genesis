@@ -1,4 +1,7 @@
-﻿namespace Blocks.Genesis
+﻿using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
+
+namespace Blocks.Genesis
 {
     public sealed class BlocksSecret : IBlocksSecret
     {
@@ -20,6 +23,14 @@
             return blocksSecret;
         }
 
+        public static IBlocksSecret ProcessBlocksSecretFromJsonFile(string jsonFilePath)
+        {
+            var secretConfigJson = File.ReadAllText(jsonFilePath);
+            var secretConfig = JsonConvert.DeserializeObject<BlocksSecret>(secretConfigJson);
+
+            return secretConfig;
+        }
+
         public void UpdateProperty(string propertyName, object propertyValue)
         {
             var property = this.GetType().GetProperty(propertyName);
@@ -33,8 +44,6 @@
                 Console.WriteLine($"Property '{propertyName}' not found or is read-only.");
             }
         }
-
-
     }
 
 }

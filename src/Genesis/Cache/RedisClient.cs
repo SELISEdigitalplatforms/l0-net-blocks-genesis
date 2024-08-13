@@ -6,10 +6,9 @@ namespace Blocks.Genesis
     {
         private readonly IDatabase _database;
 
-        public RedisClient()
+        public RedisClient(IBlocksSecret blocksSecret)
         {
-            IConnectionMultiplexer connectionMultiplexer = ConnectionMultiplexer.Connect("");
-
+            IConnectionMultiplexer connectionMultiplexer = ConnectionMultiplexer.Connect($"{blocksSecret.CacheConnectionString}");
             _database = connectionMultiplexer.GetDatabase();
         }
 
