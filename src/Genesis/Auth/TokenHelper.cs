@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
-using System.Security.Claims;
 
 namespace Blocks.Genesis
 {
@@ -21,37 +20,12 @@ namespace Blocks.Genesis
 
         private static string GetTokenFromCookie(HttpRequest request)
         {
-            var originHost = GetHostOfRequestOrigin(request);
-            if (string.IsNullOrEmpty(originHost) || !request.Cookies.TryGetValue(originHost, out string token))
+            if (!request.Cookies.TryGetValue("access_token", out string token))
             {
                 return string.Empty;
             }
 
             return token;
-        }
-
-        public static string GetHostOfRequestOrigin(HttpRequest request)
-        {
-            if (request.Headers.TryGetValue("Origin", out StringValues origin) ||
-                request.Headers.TryGetValue("Referer", out origin))
-            {
-                if (Uri.TryCreate(origin.ToString(), UriKind.Absolute, out Uri uri))
-                {
-                    return uri.Host;
-                }
-            }
-
-            return string.Empty;
-        }
-
-        public static void HandleTokenIssuer(ClaimsIdentity claimsIdentity, string requestUri)
-        {
-            if (claimsIdentity == null) throw new ArgumentNullException(nameof(claimsIdentity));
-
-            claimsIdentity.AddClaims(new[]
-            {
-                new Claim(BlocksContext.REQUEST_URI_CLAIM, requestUri)
-            });
         }
 
     }

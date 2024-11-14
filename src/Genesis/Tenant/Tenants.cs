@@ -6,7 +6,6 @@ namespace Blocks.Genesis
 {
     public class Tenants : ITenants
     {
-        private List<Tenant> _tenants = new List<Tenant>();
         private readonly ILogger<Tenants> _logger;
         private readonly IBlocksSecret _blocksSecret;
         private readonly ICacheClient _cacheClient;
@@ -18,52 +17,54 @@ namespace Blocks.Genesis
             _logger = logger;
             _blocksSecret = blocksSecret;
             _cacheClient = cacheClient;
-
-            CacheTenants();
         }
 
-        public Tenant? GetTenantByID(string tenantId)
+        public async Task<Tenant?> GetTenantByID(string tenantId)
         {
-            var tenant = _tenants.FirstOrDefault(t => t.ItemId == tenantId || t.TenantId == tenantId) ?? GetTenantFromCache(tenantId);
+            var tenant = GetTenantFromCache(tenantId);
+            if(tenant == null)
+            {
+                tenant = await CacheTenant(tenantId);
+            }
 
             return tenant;
         }
 
         public Dictionary<string, (string, string)> GetTenantDatabaseConnectionStrings()
         {
-            return _tenants.ToDictionary(t => t.TenantId, t => (t.DBName, t.DbConnectionString));
+            IMongoDatabase _database = new MongoClient(_blocksSecret.DatabaseConnectionString).GetDatabase(_blocksSecret.RootDatabaseName);
+            var tenants = _database.GetCollection<Tenant>(BlocksConstants.TenantCollectionName).Find(_ => true).ToList()
+                .ToDictionary(t => t.TenantId, t => (t.DBName, t.DbConnectionString));
+            return tenants;
         }
 
-        public (string?, string?) GetTenantDatabaseConnectionString(string tenantId)
+        public async Task<(string?, string?)> GetTenantDatabaseConnectionString(string tenantId)
         {
-            var tenant = _tenants?.FirstOrDefault(t => t.TenantId == tenantId);
-
-            if (tenant == null)
-            {
-                tenant = GetTenantFromCache(tenantId);
-            }
+            var tenant = await GetTenantByID(tenantId);
 
             return (tenant?.DBName, tenant?.DbConnectionString);
         }
 
         public JwtTokenParameters? GetTenantTokenValidationParameter(string tenantId)
         {
-            var tenant = _tenants.FirstOrDefault((Tenant t) => t.TenantId.Equals(tenantId, StringComparison.InvariantCultureIgnoreCase));
+            var tenant = GetTenantFromCache(tenantId);
             return tenant == null ? null : tenant.JwtTokenParameters;
         }
 
-        public void CacheTenants()
+        public async Task CacheTenants()
         {
             try
             {
                 IMongoDatabase _database = new MongoClient(_blocksSecret.DatabaseConnectionString).GetDatabase(_blocksSecret.RootDatabaseName);
-                _tenants = _database.GetCollection<Tenant>(BlocksConstants.TenantCollectionName).Find(_ => true).ToList();
+                var tenants = await _database.GetCollection<Tenant>(BlocksConstants.TenantCollectionName).Find(_ => true).ToListAsync();
 
-                foreach (var tenant in _tenants)
+                foreach (var tenant in tenants)
                 {
                     SaveTenantInCache(tenant);
                     LmtConfiguration.CreateCollectionForTrace(_blocksSecret.TraceConnectionString, tenant.TenantId);
                 }
+
+                tenants = null;
             }
             catch (Exception exception)
             {
@@ -73,23 +74,24 @@ namespace Blocks.Genesis
 
         }
 
-        public void CacheTenant(string tenantId)
+        public async Task<Tenant?> CacheTenant(string tenantId)
         {
             try
             {
-                var tenant = _database.GetCollection<Tenant>(BlocksConstants.TenantCollectionName).Find((Tenant t) => t.ItemId == tenantId || t.TenantId == tenantId).FirstOrDefault();
-                var index = _tenants.FindIndex(x => x.TenantId == tenantId);
-                if (index != -1) _tenants.RemoveAt(index);
-                _tenants.Add(tenant);
+                var tenant = await _database.GetCollection<Tenant>(BlocksConstants.TenantCollectionName)
+                    .Find((Tenant t) => t.ItemId == tenantId || t.TenantId == tenantId)
+                    .FirstOrDefaultAsync();
 
                 SaveTenantInCache(tenant);
 
                 LmtConfiguration.CreateCollectionForTrace(_blocksSecret.TraceConnectionString, tenant.TenantId);
+                return tenant;
             }
             catch (Exception exception)
             {
                 _logger.LogError(exception, exception.Message);
             }
+            return null;
         }
 
 
@@ -189,8 +191,6 @@ namespace Blocks.Genesis
                     GetNumberOfWrongAttemptsToLockTheAccount = (int)hashEntries.FirstOrDefault(e => e.Name == "GetNumberOfWrongAttemptsToLockTheAccount").Value,
                     AccountLockDurationInMinutes = (int)hashEntries.FirstOrDefault(e => e.Name == "AccountLockDurationInMinutes").Value,
                 };
-
-                _tenants.Add(tenant);
 
                 return tenant;
             }

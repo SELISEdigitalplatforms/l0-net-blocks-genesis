@@ -2,11 +2,11 @@
 {
     public interface ITenants
     {
-        Tenant? GetTenantByID(string tenantId);
+        Task<Tenant?> GetTenantByID(string tenantId);
         Dictionary<string, (string, string)> GetTenantDatabaseConnectionStrings();
-        (string?, string?) GetTenantDatabaseConnectionString(string tenantId);
+        Task<(string?, string?)> GetTenantDatabaseConnectionString(string tenantId);
         JwtTokenParameters? GetTenantTokenValidationParameter(string tenantId);
-        void CacheTenants();
-        void CacheTenant(string tenantId);
+        Task CacheTenants();
+        Task<Tenant?> CacheTenant(string tenantId);
     }
 }

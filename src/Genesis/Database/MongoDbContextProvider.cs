@@ -40,20 +40,20 @@ namespace Blocks.Genesis
             }
         }
 
-        public IMongoDatabase GetDatabase(string tenantId)
+        public async Task<IMongoDatabase> GetDatabase(string tenantId)
         {
             if (_databases.TryGetValue(tenantId, out var database))
             {
                 return database;
             }
 
-            return SaveNewTenantDbConnection(tenantId);
+            return await SaveNewTenantDbConnection(tenantId);
         }
 
-        public IMongoDatabase? GetDatabase()
+        public async Task<IMongoDatabase?> GetDatabase()
         {
             var securityContext = BlocksContext.GetContext();
-            return securityContext?.TenantId == null ? null : GetDatabase(securityContext.TenantId);
+            return securityContext?.TenantId == null ? null : await GetDatabase(securityContext.TenantId);
         }
 
         public IMongoDatabase GetDatabase(string connectionString, string databaseName)
@@ -69,19 +69,19 @@ namespace Blocks.Genesis
             return newDatabase;
         }
 
-        public IMongoCollection<T> GetCollection<T>(string collectionName)
+        public async Task<IMongoCollection<T>> GetCollection<T>(string collectionName)
         {
-            var database = GetDatabase();
+            var database = await GetDatabase();
             if (database == null)
             {
                 throw new InvalidOperationException("Database context is not available. Ensure that the tenant ID is set correctly.");
             }
-            return database.GetCollection<T>(collectionName);
+            return  database.GetCollection<T>(collectionName);
         }
 
-        public IMongoCollection<T> GetCollection<T>(string tenantId, string collectionName)
+        public async Task<IMongoCollection<T>> GetCollection<T>(string tenantId, string collectionName)
         {
-            var database = GetDatabase(tenantId);
+            var database = await GetDatabase(tenantId);
             return database.GetCollection<T>(collectionName);
         }
 
@@ -96,11 +96,11 @@ namespace Blocks.Genesis
             return new MongoClient(settings);
         }
 
-        private IMongoDatabase SaveNewTenantDbConnection(string tenantId)
+        private async Task<IMongoDatabase> SaveNewTenantDbConnection(string tenantId)
         {
             try
             {
-                var (dbName, dbConnection) = _tenants.GetTenantDatabaseConnectionString(tenantId);
+                var (dbName, dbConnection) = await _tenants.GetTenantDatabaseConnectionString(tenantId);
 
                 if (string.IsNullOrWhiteSpace(dbConnection))
                 {

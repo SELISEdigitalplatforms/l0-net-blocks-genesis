@@ -24,7 +24,7 @@ namespace Blocks.Genesis
                 return;
             }
 
-            var tenant = _tenants.GetTenantByID(apiKey.ToString());
+            var tenant = await _tenants.GetTenantByID(apiKey.ToString());
 
             if (tenant == null)
             {
@@ -50,7 +50,7 @@ namespace Blocks.Genesis
 
         private static bool IsValidOrigin(string? origin, string applicationDomain)
         {
-            if (string.IsNullOrWhiteSpace(origin)) return true;
+            if (string.IsNullOrWhiteSpace(origin) || origin == "null") return true;
 
             applicationDomain = applicationDomain.Replace("http://", "").Replace("https://", "");
             origin = origin.Replace("http://", "").Replace("https://", "").Split(":")[0];

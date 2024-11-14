@@ -12,13 +12,13 @@ namespace Blocks.Genesis
         /// </summary>
         /// <param name="tenantId">The ID of the tenant.</param>
         /// <returns>The MongoDB database associated with the specified tenant.</returns>
-        IMongoDatabase GetDatabase(string tenantId);
+        Task<IMongoDatabase> GetDatabase(string tenantId);
 
         /// <summary>
         /// Gets the default MongoDB database.
         /// </summary>
         /// <returns>The default MongoDB database, or null if not available.</returns>
-        IMongoDatabase? GetDatabase();
+        Task<IMongoDatabase?> GetDatabase();
 
         /// <summary>
         /// Gets a MongoDB database using the specified connection string and database name.
@@ -34,7 +34,7 @@ namespace Blocks.Genesis
         /// <typeparam name="T">The type of documents in the collection.</typeparam>
         /// <param name="collectionName">The name of the collection.</param>
         /// <returns>The MongoDB collection of the specified type.</returns>
-        IMongoCollection<T> GetCollection<T>(string collectionName);
+        Task<IMongoCollection<T>> GetCollection<T>(string collectionName);
 
         /// <summary>
         /// Gets a MongoDB collection for the specified tenant ID and collection name.
@@ -43,6 +43,6 @@ namespace Blocks.Genesis
         /// <param name="tenantId">The ID of the tenant.</param>
         /// <param name="collectionName">The name of the collection.</param>
         /// <returns>The MongoDB collection of the specified type for the specified tenant.</returns>
-        IMongoCollection<T> GetCollection<T>(string tenantId, string collectionName);
+        Task<IMongoCollection<T>> GetCollection<T>(string tenantId, string collectionName);
     }
 }

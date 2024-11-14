@@ -35,6 +35,12 @@ namespace Blocks.Genesis
                                 return;
                             }
                             var validationParameter = tenants.GetTenantTokenValidationParameter(bc.TenantId);
+                            if(validationParameter == null)
+                            {
+                                context.Fail("Jwt parameters not found");
+                                return;
+                            }
+
                             context.Options.TokenValidationParameters = new TokenValidationParameters
                             {
                                 ValidateLifetime = true,
@@ -51,7 +57,6 @@ namespace Blocks.Genesis
                         OnTokenValidated = async context =>
                         {
                             var claimsIdentity = context.Principal.Identity as ClaimsIdentity;
-                            TokenHelper.HandleTokenIssuer(claimsIdentity, context.Request.Path.Value);
                             StoreBlocksContextInActivity(BlocksContext.CreateFromClaimsIdentity(claimsIdentity));
                         },
                         OnAuthenticationFailed = authenticationFailedContext =>
