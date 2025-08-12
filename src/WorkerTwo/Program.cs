@@ -3,29 +3,32 @@ using WorkerTwo;
 
 
 const string _serviceName = "Service-Worker-Test_Two";
-ApplicationConfigurations.SetServiceName(_serviceName);
-ApplicationConfigurations.ConfigureLog();
-CreateHostBuilder(args).Build().Run();
+var blocksSecrets = await ApplicationConfigurations.ConfigureLogAndSecretsAsync(_serviceName, VaultType.OnPrem);
 
+var messageConfiguration = new MessageConfiguration
+{
+    Connection = blocksSecrets.MessageConnectionString,
+    RabbitMqConfiguration = new()
+    {
+        ConsumerSubscriptions = new()
+        {
+            ConsumerSubscription.BindToQueue("test_from_cloud_queue_1", 2),
+            ConsumerSubscription.BindToQueueViaExchange("test_from_cloud_queue_1", "test_from_cloud_exchange_1", 2),
+        }
+    },
+    ServiceName = blocksSecrets.ServiceName,
+};
+
+await CreateHostBuilder(args).Build().RunAsync();
 
 IHostBuilder CreateHostBuilder(string[] args) =>
-        Host.CreateDefaultBuilder(args).ConfigureServices(async (hostContext, services) =>
+        Host.CreateDefaultBuilder(args).ConfigureServices((services) =>
         {
-
-            await ApplicationConfigurations.ConfigureServices(services);
-
+          //  services.AddSingleton<SecurityContext, BlocksContext>();
             services.AddHttpClient();
-
 
             services.AddSingleton<IConsumer<W1Context>, W1Consumer>();
             services.AddSingleton<IConsumer<W2Context>, W2Consumer>();
 
-            await ApplicationConfigurations.ConfigureMessageWorker(services, new MessageConfiguration
-            {
-                Connection = "Endpoint=sb://blocks-rnd.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=yrPedlcfEp0/jHeh6m0ndC0qoyYeg5UT2+ASbObmPYU=",
-                Queues = new List<string> { "demo_queue_1" },
-                Topics = new List<string> { "demo_topic" },
-                ServiceName = _serviceName,
-            });
-
+            ApplicationConfigurations.ConfigureWorker(services, messageConfiguration);
         });

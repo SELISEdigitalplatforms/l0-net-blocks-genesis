@@ -1,104 +1,78 @@
 ﻿using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
-using System.Reflection;
+using Microsoft.Extensions.Configuration;
 
 namespace Blocks.Genesis
 {
-    public class AzureKeyVault : ICloudVault
+    public class AzureKeyVault : IVault
     {
         private SecretClient _secretClient;
         private string _keyVaultUrl;
         private string _tenantId;
         private string _clientId;
         private string _clientSecret;
-        private BlocksSecret _blocksSecret;
 
-        public async Task<BlocksSecret> ProcessSecrets(BlocksSecret blocksSecret, Dictionary<string, string> cloudConfig)
+        public async Task<Dictionary<string, string>> ProcessSecretsAsync(List<string> keys)
         {
-            _blocksSecret = blocksSecret;
-
-            ExtractValuesFromGlobalConfig(cloudConfig);
-
-            ConnectAzureKeyVault();
-
-            await FormatGlobalConfigFromAzureKeyVault();
-
-            return _blocksSecret;
+            ExtractValuesFromGlobalConfig(GetVaultConfig());
+            ConnectToAzureKeyVaultSecret();
+            return await GetSecretsFromVaultAsync(keys);
         }
 
-        public bool ExtractValuesFromGlobalConfig(Dictionary<string, string> cloudConfig)
+        public static Dictionary<string, string> GetVaultConfig()
         {
-            try
-            {
-                _keyVaultUrl = cloudConfig["KeyVaultUrl"];
-                _tenantId = cloudConfig["TenantId"];
-                _clientId = cloudConfig["ClientId"];
-                _clientSecret = cloudConfig["ClientSecret"];
+            var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+            var keyVaultConfig = new Dictionary<string, string>();
+            configuration.GetSection(BlocksConstants.KeyVault).Bind(keyVaultConfig);
 
-                return true;
-            }
-            catch (Exception)
+            return keyVaultConfig;
+        }
+
+        private void ExtractValuesFromGlobalConfig(Dictionary<string, string> cloudConfig)
+        {
+            if (!cloudConfig.TryGetValue("KeyVaultUrl", out _keyVaultUrl) ||
+                !cloudConfig.TryGetValue("TenantId", out _tenantId) ||
+                !cloudConfig.TryGetValue("ClientId", out _clientId) ||
+                !cloudConfig.TryGetValue("ClientSecret", out _clientSecret))
             {
-                throw new Exception("One of the AZURE config or \"CloudConfig\" is missing. Please check your Secret.json file");
+                throw new InvalidOperationException("One or more required Azure config values are missing. Please check your environment configuration.");
             }
         }
 
-        public bool ConnectAzureKeyVault()
+        private void ConnectToAzureKeyVaultSecret()
         {
-            _secretClient = new SecretClient(new Uri(_keyVaultUrl), new ClientSecretCredential(_tenantId, _clientId, _clientSecret));
-
-            return true;
+            var credential = new ClientSecretCredential(_tenantId, _clientId, _clientSecret);
+            _secretClient = new SecretClient(new Uri(_keyVaultUrl), credential);
         }
 
-        public async Task<bool> FormatGlobalConfigFromAzureKeyVault()
+        private async Task<Dictionary<string, string>> GetSecretsFromVaultAsync(List<string> keys)
         {
-            PropertyInfo[] properties = typeof(BlocksSecret).GetProperties();
+            var secrets = new Dictionary<string, string>();
 
-            foreach (PropertyInfo property in properties)
+            foreach (var key in keys)
             {
-                string propertyName = property.Name;
-                string retrievedValue = await GetDataFromKeyVault(propertyName);
-
-                if (!string.IsNullOrWhiteSpace(retrievedValue))
+                var secretValue = await GetSecretFromKeyVaultAsync(key);
+                if (!string.IsNullOrEmpty(secretValue))
                 {
-                    object convertedValue = ConvertValue(retrievedValue, property.PropertyType);
-
-                    _blocksSecret.UpdateProperty(propertyName, convertedValue);
+                    secrets.Add(key, secretValue);
                 }
             }
 
-            return true;
+            return secrets;
         }
 
-        public async Task<string> GetDataFromKeyVault(string propertyName)
+        private async Task<string> GetSecretFromKeyVaultAsync(string key)
         {
             try
             {
-                var secret = await _secretClient.GetSecretAsync(propertyName);
-
+                var secret = await _secretClient.GetSecretAsync(key);
                 return secret.Value.Value;
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                return null;
+                Console.WriteLine($"Error retrieving secret '{key}': {e.Message}");
+                return string.Empty;
             }
-        }
-
-        public static object ConvertValue(string value, Type targetType)
-        {
-            if (targetType != typeof(string))
-            {
-                try
-                {
-                    return Convert.ChangeType(value, targetType);
-                }
-                catch (Exception)
-                {
-                    // Handle conversion exceptions
-                }
-            }
-            return value;
         }
     }
-
 }

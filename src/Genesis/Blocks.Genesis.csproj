@@ -1,36 +1,51 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
+    <Version>9.0.0-preview.93</Version>
+    <PackageId>SeliseBlocks.Genesis</PackageId>
+    <Authors>SeliseBlocks</Authors>
+    <Company>SeliseBlocks</Company>
+    <Description>Blocks Genesis</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>Genesis, BlocksGenesis, SeliseBlocksGenesis</PackageTags>
+    <RepositoryUrl>https://github.com/SELISEdigitalplatforms/l0-net-blocks-genesis</RepositoryUrl>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Azure.Identity" Version="1.12.0" />
-		<PackageReference Include="Azure.Messaging.ServiceBus" Version="7.17.5" />
-		<PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.6.0" />
-		<PackageReference Include="Elyspio.OpenTelemetry.Redis" Version="2.0.2" />
-		<PackageReference Include="MongoDB.Driver" Version="2.26.0" />
-		<PackageReference Include="MongoDB.Driver.Core.Extensions.DiagnosticSources" Version="1.4.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.6" />
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-		<PackageReference Include="OpenTelemetry" Version="1.9.0" />
-		<PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
-		<PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.9.0" />
-		<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.9.0" />
-		<PackageReference Include="OpenTelemetry.Instrumentation.Process" Version="0.5.0-beta.6" />
-		<PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.9.0" />
+		<PackageReference Include="Azure.Identity" Version="1.14.2" />
+		<PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
+		<PackageReference Include="Azure.Security.KeyVault.Certificates" Version="4.8.0" />
+		<PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.8.0" />
+		<PackageReference Include="MongoDB.Driver" Version="3.4.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.6" />
 
-		<PackageReference Include="Serilog" Version="4.0.0" />
-		<PackageReference Include="Serilog.AspNetCore" Version="8.0.1" />
-		<PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.0" />
-		<PackageReference Include="Serilog.Enrichers.HttpContext" Version="8.0.6" />
+		<PackageReference Include="OpenTelemetry" Version="1.12.0" />
+		<PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.12.0" />
+		<PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.12.0" />
+		<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.12.0" />
+		<PackageReference Include="OpenTelemetry.Instrumentation.Process" Version="1.12.0-beta.1" />
+		<PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.12.0" />
+		<PackageReference Include="Polly" Version="8.6.1" />
+		<PackageReference Include="RabbitMQ.Client" Version="7.1.2" />
+
+		<PackageReference Include="Serilog" Version="4.3.0" />
+		<PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+		<PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+		<PackageReference Include="Serilog.Enrichers.HttpContext" Version="8.0.9" />
 		<PackageReference Include="Serilog.Enrichers.OpenTelemetry" Version="1.0.1" />
 		<PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
-		<PackageReference Include="Serilog.Sinks.MongoDB" Version="5.4.1" />
+		<PackageReference Include="Serilog.Sinks.MongoDB" Version="7.0.0" />
+		<PackageReference Include="StackExchange.Redis" Version="2.8.41" />
 
-		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
+		<PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.1" />
+
+		<PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
+		<PackageReference Include="Google.Protobuf" Version="3.31.1" />
+		<PackageReference Include="Grpc.Net.Client" Version="2.71.0" />
+		
 	</ItemGroup>
 
 </Project>

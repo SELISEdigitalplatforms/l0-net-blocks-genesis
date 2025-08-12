@@ -1,81 +1,253 @@
-﻿using MongoDB.Driver;
+﻿using Microsoft.Extensions.Logging;
+using MongoDB.Bson;
+using MongoDB.Driver;
 using StackExchange.Redis;
+using System.Collections.Concurrent;
 
 namespace Blocks.Genesis
 {
-    public class Tenants : ITenants
+    public class Tenants : ITenants, IDisposable
     {
-        private readonly List<Tenant> _tenants = new List<Tenant>();
-        private readonly IMongoCollection<Tenant> _collection;
+        private readonly ILogger<Tenants> _logger;
+        private readonly IBlocksSecret _blocksSecret;
+        private readonly ICacheClient _cacheClient;
+        private readonly IMongoDatabase _database;
+        private readonly string _tenantVersionKey = "tenant::version";
+        private readonly string _tenantUpdateChannel = "tenant::updates";
+        private string _tenantVersion;
+        private bool _isSubscribed = false;
+        private bool _disposed = false;
 
-        public Tenants()
+        // Using ConcurrentDictionary for thread-safe access and efficient lookups
+        private readonly ConcurrentDictionary<string, Tenant> _tenantCache = [];
+
+        public Tenants(ILogger<Tenants> logger, IBlocksSecret blocksSecret, ICacheClient cacheClient)
         {
-            IMongoDatabase database = new MongoClient("mongodb://localhost:27017").GetDatabase("Blocks");
-            _collection = database.GetCollection<Tenant>("Tenants");
+            _logger = logger;
+            _blocksSecret = blocksSecret;
+            _cacheClient = cacheClient;
 
-            _tenants = _collection.Find((Tenant _) => true).ToList();
-        }
-        public async Task<Tenant> GetTenantByApplicationDomain(string applicationDomain)
-        {
-            var tenant = _tenants.FirstOrDefault((Tenant t) => t.ApplicationDomain.Equals(applicationDomain, StringComparison.InvariantCultureIgnoreCase));
+            _database = new MongoClient(_blocksSecret.DatabaseConnectionString).GetDatabase(_blocksSecret.RootDatabaseName);
 
-            if (tenant == null)
+            try
             {
-                tenant = await _collection.Find(t => t.ApplicationDomain == applicationDomain).FirstOrDefaultAsync();
-                _tenants.Add(tenant);
+                InitializeCache();
+                // Subscribe to tenant updates
+                SubscribeToTenantUpdates().ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to initialize tenant cache.");
+            }
+        }
+
+        public Tenant? GetTenantByID(string tenantId)
+        {
+            if (string.IsNullOrWhiteSpace(tenantId)) return null;
+
+            // Try to get tenant from the in-memory cache
+            if (_tenantCache.TryGetValue(tenantId, out var tenant))
+                return tenant;
+
+
+            // If not found in cache, fetch from database and update cache
+            tenant = GetTenantFromDb(tenantId);
+            if (tenant != null)
+            {
+                _tenantCache[tenant.TenantId] = tenant;
             }
 
             return tenant;
         }
 
-        public async Task<Tenant> GetTenantByID(string tenantId)
+        public Dictionary<string, (string, string)> GetTenantDatabaseConnectionStrings()
         {
-            var tenant = _tenants.FirstOrDefault((Tenant t) => t.TenantId.Equals(tenantId, StringComparison.InvariantCultureIgnoreCase));
+            return _tenantCache.ToDictionary(
+                kvp => kvp.Key,
+                kvp => (kvp.Value.DBName, kvp.Value.DbConnectionString));
+        }
 
-            if (tenant == null)
+        public (string?, string?) GetTenantDatabaseConnectionString(string tenantId)
+        {
+            if (string.IsNullOrWhiteSpace(tenantId)) return (null, null);
+
+            var tenant = GetTenantByID(tenantId);
+            return tenant is null ? (null, null) : (tenant.DBName, tenant.DbConnectionString);
+        }
+
+        public JwtTokenParameters? GetTenantTokenValidationParameter(string tenantId)
+        {
+            if (string.IsNullOrWhiteSpace(tenantId)) return null;
+
+            var tenant = GetTenantByID(tenantId);
+            return tenant?.JwtTokenParameters;
+        }
+
+        public async Task UpdateTenantVersionAsync()
+        {
+            try
             {
-                tenant = await _collection.Find(t => t.TenantId == tenantId).FirstOrDefaultAsync();
-                _tenants.Add(tenant);
+                string newVersion = Guid.NewGuid().ToString("n");
+
+                // Set the new version in Redis
+                bool setSuccess = await _cacheClient.AddStringValueAsync(_tenantVersionKey, newVersion);
+                if (!setSuccess)
+                {
+                    _logger.LogWarning("Failed to update tenant version in Redis.");
+                    return;
+                }
+
+                // Update local version
+                _tenantVersion = newVersion;
+
+                // Publish the update to notify all instances
+                await _cacheClient.PublishAsync(_tenantUpdateChannel, _tenantVersion);
+
+                _logger.LogInformation("Tenant version updated to {Version} and published to channel.", newVersion);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update tenant version.");
+            }
+        }
+
+        private void InitializeCache()
+        {
+            ReloadTenants();
+        }
+
+        private async Task SubscribeToTenantUpdates()
+        {
+            if (_isSubscribed) return;
+
+            try
+            {
+                await _cacheClient.SubscribeAsync(_tenantUpdateChannel, HandleTenantUpdate);
+                _isSubscribed = true;
+                _logger.LogInformation("Successfully subscribed to tenant updates channel.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to subscribe to tenant updates channel.");
+            }
+        }
+
+        private void HandleTenantUpdate(RedisChannel channel, RedisValue message)
+        {
+            try
+            {
+                string newVersion = message.ToString();
+
+                // Skip if we're already on this version
+                if (_tenantVersion == newVersion) return;
+
+                _logger.LogInformation("Received tenant update notification. New version: {Version}", newVersion);
+
+                // Update local version
+                _tenantVersion = newVersion;
+
+                // Reload tenant data
+                ReloadTenants();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling tenant update notification.");
+            }
+        }
+
+        private void ReloadTenants()
+        {
+            try
+            {
+                var tenants = _database
+                    .GetCollection<Tenant>(BlocksConstants.TenantCollectionName)
+                    .Find(FilterDefinition<Tenant>.Empty)
+                    .ToList();
+
+                _tenantCache.Clear();
+
+                foreach (var tenant in tenants)
+                {
+
+                    _tenantCache[tenant.TenantId] = tenant;
+
+                    if (tenant.CreatedDate > DateTime.UtcNow.AddDays(-1))
+                    {
+                        LmtConfiguration.CreateCollectionForTrace(_blocksSecret.TraceConnectionString, tenant.TenantId);
+                    }
+                }
+
+                _logger.LogInformation("Reloaded {Count} tenants into cache.", tenants.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to reload tenants into cache.");
+            }
+        }
+
+
+        private Tenant? GetTenantFromDb(string tenantId)
+        {
+            if (string.IsNullOrWhiteSpace(tenantId)) return null;
+
+            try
+            {
+                return _database
+                    .GetCollection<Tenant>(BlocksConstants.TenantCollectionName)
+                    .Find(t => t.ItemId == tenantId || t.TenantId == tenantId)
+                    .FirstOrDefault();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to retrieve tenant from DB for ID: {TenantId}", tenantId);
+                return null;
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+
+            // Unsubscribe from tenant updates
+            if (_isSubscribed)
+            {
+                try
+                {
+                    _cacheClient.UnsubscribeAsync(_tenantUpdateChannel).Wait();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error unsubscribing from tenant updates channel.");
+                }
             }
 
-            return tenant;
+            _disposed = true;
         }
 
-        public async Task<string> GetTenantDatabaseConnectionString(string tenantId)
+        public Tenant? GetTenantByApplicationDomain(string appName)
         {
-            var tenant = await GetTenantByID(tenantId);
+            if (string.IsNullOrWhiteSpace(appName)) return null;
 
-            return tenant?.DbConnectionString ?? string.Empty;
-        }
+            appName = appName.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ? appName : $"https://{appName}";
 
-        public Dictionary<string, string> GetTenantDatabaseConnectionStrings()
-        {
-            return _tenants.ToDictionary(t => t.TenantId, t => t.DbConnectionString);
-        }
-
-        public JwtTokenParameters GetTenantTokenValidationParameter(string tenantId)
-        {
-            var tenant = _tenants.FirstOrDefault((Tenant t) => t.TenantId.Equals(tenantId, StringComparison.InvariantCultureIgnoreCase));
-            if (tenant == null) return null;
-
-            return new JwtTokenParameters 
+            try
             {
-                Issuer = "https://issuer1.com",
-                Audiences = new List<string> { "audience1" },
-                SigningKeyPassword = "signingKey1",
-                SigningKeyPath = ""
-            };
-        }
+                var builder = Builders<Tenant>.Filter;
 
-        public IEnumerable<JwtTokenParameters> GetTenantTokenValidationParameters()
-        {
-            return _tenants.Select((Tenant t) =>  new JwtTokenParameters
+                var domainMatch = builder.Or(
+                    builder.Eq(t => t.ApplicationDomain, appName),
+                    builder.AnyEq(t => t.AllowedDomains, appName));
+
+                return _database
+                    .GetCollection<Tenant>(BlocksConstants.TenantCollectionName)
+                    .Find(domainMatch)
+                    .FirstOrDefault();
+            }
+            catch (Exception ex)
             {
-                Issuer = "https://issuer1.com",
-                Audiences = new List<string> { "audience1" },
-                SigningKeyPassword = "signingKey1",
-                SigningKeyPath = ""
-            });
+                _logger.LogError(ex, "Failed to retrieve tenant from DB for Application name: {AppName}", appName);
+                return null;
+            }
         }
     }
 }

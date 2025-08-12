@@ -8,22 +8,18 @@ namespace Blocks.Genesis
     {
         public static string GetToken(HttpRequest request)
         {
-            if (request.Headers.TryGetValue("Authorization", out StringValues token) && !StringValues.IsNullOrEmpty(token))
+            if (request.Headers.TryGetValue(BlocksConstants.AuthorizationHeaderName, out StringValues token) && !StringValues.IsNullOrEmpty(token) && token.ToString().StartsWith(BlocksConstants.Bearer, StringComparison.OrdinalIgnoreCase))
             {
-                const string bearerPrefix = "Bearer ";
-                if (token.ToString().StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
-                {
-                    return token.ToString().Substring(bearerPrefix.Length).Trim();
-                }
+                return token.ToString().Substring(BlocksConstants.Bearer.Length).Trim();
             }
 
             return GetTokenFromCookie(request);
         }
 
-        private static string GetTokenFromCookie(HttpRequest request)
+        public static string GetTokenFromCookie(HttpRequest request)
         {
-            var originHost = GetHostOfRequestOrigin(request);
-            if (string.IsNullOrEmpty(originHost) || !request.Cookies.TryGetValue(originHost, out string token))
+            var bc = BlocksContext.GetContext();
+            if (!request.Cookies.TryGetValue($"access_token_{bc.TenantId}", out string token))
             {
                 return string.Empty;
             }
@@ -31,56 +27,14 @@ namespace Blocks.Genesis
             return token;
         }
 
-        public static string GetHostOfRequestOrigin(HttpRequest request)
+        public static void HandleTokenIssuer(ClaimsIdentity claimsIdentity, string requestUri)
         {
-            if (request.Headers.TryGetValue("Origin", out StringValues origin) ||
-                request.Headers.TryGetValue("Referer", out origin))
-            {
-                if (Uri.TryCreate(origin.ToString(), UriKind.Absolute, out Uri uri))
-                {
-                    return uri.Host;
-                }
-            }
+            ArgumentNullException.ThrowIfNull(claimsIdentity);
 
-            return string.Empty;
-        }
-
-        public static void HandleTokenIssuer(ClaimsIdentity claimsIdentity, string requestUri, string jwtBearerToken)
-        {
-            if (claimsIdentity == null) throw new ArgumentNullException(nameof(claimsIdentity));
-            if (requestUri == null) throw new ArgumentNullException(nameof(requestUri));
-            if (jwtBearerToken == null) throw new ArgumentNullException(nameof(jwtBearerToken));
-
-            claimsIdentity.AddClaims(new[]
-            {
-                new Claim("requestUri", requestUri),
-                new Claim("oauthBearerToken", jwtBearerToken)
-            });
-        }
-
-        public static string GetBlocksSecret(HttpRequest request)
-        {
-            if (request.Headers.TryGetValue("X-Blocks-Secret", out StringValues secret))
-            {
-                return secret.ToString();
-            }
-
-            return string.Empty;
-        }
-
-        public static string GetOriginOrReferer(HttpRequest request)
-        {
-            if (request.Headers.TryGetValue("Origin", out StringValues origin))
-            {
-                return origin.ToString();
-            }
-
-            if (request.Headers.TryGetValue("Referer", out origin))
-            {
-                return origin.ToString();
-            }
-
-            return string.Empty;
+            claimsIdentity.AddClaims(
+            [
+                new Claim(BlocksContext.REQUEST_URI_CLAIM, requestUri)
+            ]);
         }
     }
 }

@@ -3,27 +3,26 @@ using WorkerOne;
 
 
 const string _serviceName = "Service-Worker-Test_One";
-ApplicationConfigurations.SetServiceName(_serviceName);
-ApplicationConfigurations.ConfigureLog();
-CreateHostBuilder(args).Build().Run();
+var blocksSecrets = await ApplicationConfigurations.ConfigureLogAndSecretsAsync(_serviceName, VaultType.Azure);
+
+var messageConfiguration = new MessageConfiguration
+{
+   AzureServiceBusConfiguration = new()
+   {
+       Queues = new List<string> { "demo_queue" },
+       Topics = new List<string> { "demo_topic", "demo_topic_1" }
+   }
+};
+
+await CreateHostBuilder(args).Build().RunAsync();
 
 IHostBuilder CreateHostBuilder(string[] args) =>
-        Host.CreateDefaultBuilder(args).ConfigureServices(async (hostContext, services) =>
+        Host.CreateDefaultBuilder(args).ConfigureServices((services) =>
         {
-
-            await ApplicationConfigurations.ConfigureServices(services);
-
             services.AddHttpClient();
-
 
             services.AddSingleton<IConsumer<W1Context>, W1Consumer>();
             services.AddSingleton<IConsumer<W2Context>, W2Consumer>();
 
-            await ApplicationConfigurations.ConfigureMessageWorker(services, new MessageConfiguration
-            {
-                Connection = "Endpoint=sb://blocks-rnd.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=yrPedlcfEp0/jHeh6m0ndC0qoyYeg5UT2+ASbObmPYU=",
-                Queues = new List<string> { "demo_queue" },
-                Topics = new List<string> { "demo_topic", "demo_topic_1" },
-                ServiceName = _serviceName
-            });
+            ApplicationConfigurations.ConfigureWorker(services, messageConfiguration);
         });
