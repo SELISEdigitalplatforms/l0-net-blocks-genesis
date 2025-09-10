@@ -43,6 +43,8 @@ namespace Blocks.Genesis
                 context.Request.Body.Position = 0;
                 using var reader = new StreamReader(context.Request.Body, Encoding.UTF8, leaveOpen: true);
                 requestPayload = await reader.ReadToEndAsync();
+                // Remove carriage return and new line characters to prevent log forging
+                requestPayload = requestPayload.Replace("\r", "").Replace("\n", "");
                 context.Request.Body.Position = 0;
             }
 
