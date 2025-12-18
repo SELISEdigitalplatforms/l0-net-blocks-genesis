@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Builder;
+﻿using Blocks.Genesis.Middlewares;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -150,7 +151,7 @@ namespace Blocks.Genesis
                 options.Interceptors.Add<GrpcServerInterceptor>();
             });
 
-            services.AddSingleton<ChangeControllerContext>();
+          //  services.AddSingleton<ChangeControllerContext>();
         }
 
         public static void ConfigureMiddleware(WebApplication app)
@@ -192,8 +193,9 @@ namespace Blocks.Genesis
 
             app.UseAuthentication();
             app.UseAuthorization();
-
             app.MapControllers();
+
+            app.UseMiddleware<ChangeControllerContextMiddleware>();
         }
 
         public static void ConfigureWorker(IServiceCollection services, MessageConfiguration messageConfiguration)

@@ -16,29 +16,29 @@ namespace ApiOne
         private readonly IMessageClient _messageClient;
         private readonly IDbContextProvider _dbContextProvider;
         private readonly IGrpcClient _grpcClient;
-        private readonly ChangeControllerContext _changeControllerContext;
+      //  private readonly ChangeControllerContext _changeControllerContext;
 
         public S1Controller(ILogger<S1Controller> logger, IHttpService httpService, 
             IMessageClient messageClient, IDbContextProvider dbContextProvider, 
-            IGrpcClient grpcClient, ChangeControllerContext changeControllerContext)
+            IGrpcClient grpcClient/*, ChangeControllerContext changeControllerContext*/)
         {
             _logger = logger;
             _httpService = httpService;
             _messageClient = messageClient;
             _dbContextProvider = dbContextProvider;
             _grpcClient = grpcClient;
-            _changeControllerContext = changeControllerContext;
+          //  _changeControllerContext = changeControllerContext;
         }
 
         [Authorize]
         [HttpGet("process")]
         public async Task<object> ProcessRequest([FromQuery] ProcessRequest request)
         {
-            _changeControllerContext.ChangeContext(request);
+           // _changeControllerContext.ChangeContext(request);
             var sc = BlocksContext.GetContext();
             Console.WriteLine(sc);
 
-             _changeControllerContext.ChangeContext(request);
+            // _changeControllerContext.ChangeContext(request);
             _logger.LogInformation("Processing request in S1");
             // Send event to B1
             await Task.WhenAll(
